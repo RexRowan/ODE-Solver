@@ -1,7 +1,0 @@
----
-title: "My First Quarto Doc"
-format: html
----
-
-## Hello, Codespaces!
-This is running in the cloud.
