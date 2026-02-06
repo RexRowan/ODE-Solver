@@ -1,0 +1,410 @@
+---
+title: "Solving Ordinary Differential Equations"
+subtitle: "A Comparison of Python and Octave"
+author: "Magnificus Rex"
+format:
+  html:
+    code-fold: false
+    toc: true
+    theme: darkly
+execute:
+  warning: false
+---
+
+## Introduction
+
+This document demonstrates how to solve Ordinary Differential Equations (ODEs) using both Python and Octave. We'll explore several classic examples including:
+
+1. Simple exponential decay
+2. Harmonic oscillator (mass-spring system)
+3. Predator-prey dynamics (Lotka-Volterra)
+4. The Lorenz system (chaotic dynamics)
+
+## Example 1: Exponential Decay
+
+The simplest ODE describes exponential decay:
+
+$$\frac{dy}{dt} = -ky$$
+
+with initial condition $y(0) = y_0$.
+
+### Python Solution
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import odeint
+
+# Define the ODE
+def exponential_decay(y, t, k):
+    return -k * y
+
+# Parameters
+k = 0.5
+y0 = 10
+t = np.linspace(0, 10, 100)
+
+# Solve ODE
+y = odeint(exponential_decay, y0, t, args=(k,))
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.plot(t, y, 'b-', linewidth=2, label='Numerical solution')
+plt.plot(t, y0 * np.exp(-k*t), 'r--', linewidth=2, label='Analytical solution')
+plt.xlabel('Time')
+plt.ylabel('y(t)')
+plt.title('Exponential Decay (Python)')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define the ODE
+function dydt = exponential_decay(y, t, k)
+    dydt = -k * y;
+endfunction
+
+% Parameters
+k = 0.5;
+y0 = 10;
+t = linspace(0, 10, 100);
+
+% Solve ODE
+y = lsode(@(y, t) exponential_decay(y, t, k), y0, t);
+
+% Plot
+figure;
+plot(t, y, 'b-', 'LineWidth', 2);
+hold on;
+plot(t, y0 * exp(-k*t), 'r--', 'LineWidth', 2);
+xlabel('Time');
+ylabel('y(t)');
+title('Exponential Decay (Octave)');
+legend('Numerical solution', 'Analytical solution');
+grid on;
+```
+
+## Example 2: Harmonic Oscillator
+
+The classic mass-spring system is described by:
+
+$$\frac{d^2x}{dt^2} + 2\zeta\omega_0\frac{dx}{dt} + \omega_0^2x = 0$$
+
+We convert this to a system of first-order ODEs.
+
+### Python Solution
+
+```{python}
+# Define the harmonic oscillator system
+def harmonic_oscillator(y, t, zeta, omega0):
+    x, v = y
+    dxdt = v
+    dvdt = -2*zeta*omega0*v - omega0**2*x
+    return [dxdt, dvdt]
+
+# Parameters: underdamped oscillator
+zeta = 0.1  # damping ratio
+omega0 = 2*np.pi  # natural frequency
+y0 = [1, 0]  # initial position and velocity
+t = np.linspace(0, 5, 500)
+
+# Solve ODE
+solution = odeint(harmonic_oscillator, y0, t, args=(zeta, omega0))
+x = solution[:, 0]
+v = solution[:, 1]
+
+# Plot position and velocity
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+ax1.plot(t, x, 'b-', linewidth=2)
+ax1.set_ylabel('Position x(t)')
+ax1.set_title('Damped Harmonic Oscillator (Python)')
+ax1.grid(True)
+
+ax2.plot(t, v, 'r-', linewidth=2)
+ax2.set_xlabel('Time')
+ax2.set_ylabel('Velocity v(t)')
+ax2.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+# Phase portrait
+plt.figure(figsize=(8, 8))
+plt.plot(x, v, 'b-', linewidth=1.5)
+plt.plot(x[0], v[0], 'go', markersize=10, label='Start')
+plt.plot(x[-1], v[-1], 'ro', markersize=10, label='End')
+plt.xlabel('Position x')
+plt.ylabel('Velocity v')
+plt.title('Phase Portrait')
+plt.legend()
+plt.grid(True)
+plt.axis('equal')
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define the harmonic oscillator system
+function dydt = harmonic_oscillator(y, t, zeta, omega0)
+    x = y(1);
+    v = y(2);
+    dxdt = v;
+    dvdt = -2*zeta*omega0*v - omega0^2*x;
+    dydt = [dxdt; dvdt];
+endfunction
+
+% Parameters
+zeta = 0.1;
+omega0 = 2*pi;
+y0 = [1; 0];
+t = linspace(0, 5, 500);
+
+% Solve ODE
+solution = lsode(@(y, t) harmonic_oscillator(y, t, zeta, omega0), y0, t);
+x = solution(:, 1);
+v = solution(:, 2);
+
+% Plot position and velocity
+figure;
+subplot(2, 1, 1);
+plot(t, x, 'b-', 'LineWidth', 2);
+ylabel('Position x(t)');
+title('Damped Harmonic Oscillator (Octave)');
+grid on;
+
+subplot(2, 1, 2);
+plot(t, v, 'r-', 'LineWidth', 2);
+xlabel('Time');
+ylabel('Velocity v(t)');
+grid on;
+```
+
+## Example 3: Predator-Prey Dynamics
+
+The Lotka-Volterra equations model population dynamics:
+
+$$\frac{dx}{dt} = \alpha x - \beta xy$$
+$$\frac{dy}{dt} = \delta xy - \gamma y$$
+
+where $x$ is prey population and $y$ is predator population.
+
+### Python Solution
+
+```{python}
+# Define Lotka-Volterra equations
+def lotka_volterra(y, t, alpha, beta, delta, gamma):
+    x, y_pred = y
+    dxdt = alpha*x - beta*x*y_pred
+    dydt = delta*x*y_pred - gamma*y_pred
+    return [dxdt, dydt]
+
+# Parameters
+alpha = 1.0   # prey birth rate
+beta = 0.1    # predation rate
+delta = 0.075 # predator efficiency
+gamma = 1.5   # predator death rate
+y0 = [10, 5]  # initial populations
+t = np.linspace(0, 50, 1000)
+
+# Solve ODE
+solution = odeint(lotka_volterra, y0, t, args=(alpha, beta, delta, gamma))
+prey = solution[:, 0]
+predator = solution[:, 1]
+
+# Plot time series
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+ax1.plot(t, prey, 'b-', linewidth=2, label='Prey')
+ax1.plot(t, predator, 'r-', linewidth=2, label='Predator')
+ax1.set_ylabel('Population')
+ax1.set_title('Predator-Prey Dynamics (Python)')
+ax1.legend()
+ax1.grid(True)
+
+# Phase portrait
+ax2.plot(prey, predator, 'g-', linewidth=1.5)
+ax2.plot(prey[0], predator[0], 'bo', markersize=10, label='Start')
+ax2.set_xlabel('Prey Population')
+ax2.set_ylabel('Predator Population')
+ax2.set_title('Phase Portrait')
+ax2.legend()
+ax2.grid(True)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define Lotka-Volterra equations
+function dydt = lotka_volterra(y, t, alpha, beta, delta, gamma)
+    x = y(1);
+    y_pred = y(2);
+    dxdt = alpha*x - beta*x*y_pred;
+    dydt = delta*x*y_pred - gamma*y_pred;
+    dydt = [dxdt; dydt];
+endfunction
+
+% Parameters
+alpha = 1.0;
+beta = 0.1;
+delta = 0.075;
+gamma = 1.5;
+y0 = [10; 5];
+t = linspace(0, 50, 1000);
+
+% Solve ODE
+solution = lsode(@(y, t) lotka_volterra(y, t, alpha, beta, delta, gamma), y0, t);
+prey = solution(:, 1);
+predator = solution(:, 2);
+
+% Plot
+figure;
+subplot(2, 1, 1);
+plot(t, prey, 'b-', 'LineWidth', 2);
+hold on;
+plot(t, predator, 'r-', 'LineWidth', 2);
+ylabel('Population');
+title('Predator-Prey Dynamics (Octave)');
+legend('Prey', 'Predator');
+grid on;
+
+subplot(2, 1, 2);
+plot(prey, predator, 'g-', 'LineWidth', 1.5);
+xlabel('Prey Population');
+ylabel('Predator Population');
+title('Phase Portrait');
+grid on;
+```
+
+## Example 4: Lorenz System
+
+The Lorenz system is a classic example of chaotic dynamics:
+
+$$\frac{dx}{dt} = \sigma(y - x)$$
+$$\frac{dy}{dt} = x(\rho - z) - y$$
+$$\frac{dz}{dt} = xy - \beta z$$
+
+### Python Solution
+
+```{python}
+from mpl_toolkits.mplot3d import Axes3D
+
+# Define Lorenz system
+def lorenz(y, t, sigma, rho, beta):
+    x, y_coord, z = y
+    dxdt = sigma * (y_coord - x)
+    dydt = x * (rho - z) - y_coord
+    dzdt = x * y_coord - beta * z
+    return [dxdt, dydt, dzdt]
+
+# Parameters (classic chaotic regime)
+sigma = 10.0
+rho = 28.0
+beta = 8.0/3.0
+y0 = [1, 1, 1]
+t = np.linspace(0, 50, 10000)
+
+# Solve ODE
+solution = odeint(lorenz, y0, t, args=(sigma, rho, beta))
+x = solution[:, 0]
+y_coord = solution[:, 1]
+z = solution[:, 2]
+
+# 3D Plot
+fig = plt.figure(figsize=(12, 9))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot(x, y_coord, z, 'b-', linewidth=0.5, alpha=0.8)
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.set_title('Lorenz Attractor (Python)')
+plt.show()
+
+# Time series
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 9))
+
+ax1.plot(t, x, 'b-', linewidth=0.5)
+ax1.set_ylabel('x(t)')
+ax1.set_title('Lorenz System - Time Series')
+ax1.grid(True)
+
+ax2.plot(t, y_coord, 'r-', linewidth=0.5)
+ax2.set_ylabel('y(t)')
+ax2.grid(True)
+
+ax3.plot(t, z, 'g-', linewidth=0.5)
+ax3.set_xlabel('Time')
+ax3.set_ylabel('z(t)')
+ax3.grid(True)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define Lorenz system
+function dydt = lorenz(y, t, sigma, rho, beta)
+    x = y(1);
+    y_coord = y(2);
+    z = y(3);
+    dxdt = sigma * (y_coord - x);
+    dydt = x * (rho - z) - y_coord;
+    dzdt = x * y_coord - beta * z;
+    dydt = [dxdt; dydt; dzdt];
+endfunction
+
+% Parameters
+sigma = 10.0;
+rho = 28.0;
+beta = 8.0/3.0;
+y0 = [1; 1; 1];
+t = linspace(0, 50, 10000);
+
+% Solve ODE
+solution = lsode(@(y, t) lorenz(y, t, sigma, rho, beta), y0, t);
+x = solution(:, 1);
+y_coord = solution(:, 2);
+z = solution(:, 3);
+
+% 3D Plot
+figure;
+plot3(x, y_coord, z, 'b-', 'LineWidth', 0.5);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+title('Lorenz Attractor (Octave)');
+grid on;
+```
+
+## Comparison Summary
+
+| Feature | Python (scipy.integrate) | Octave (lsode) |
+|---------|-------------------------|----------------|
+| **Syntax** | More verbose, explicit | More compact |
+| **ODE Solvers** | `odeint`, `solve_ivp` | `lsode`, `ode45` |
+| **Plotting** | matplotlib (very flexible) | Built-in plotting |
+| **Performance** | Generally faster | Good for quick analysis |
+| **Ecosystem** | Extensive scientific packages | MATLAB-compatible |
+
+## Conclusion
+
+Both Python and Octave provide powerful tools for solving ODEs:
+
+- **Python** offers more flexibility and a richer ecosystem for scientific computing
+- **Octave** provides MATLAB-compatible syntax and is excellent for rapid prototyping
+- Both produce accurate numerical solutions for a wide variety of ODE problems
+
+The choice between them often depends on your specific needs, existing codebase, and personal preference.
