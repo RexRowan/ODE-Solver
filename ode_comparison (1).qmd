@@ -1,0 +1,664 @@
+---
+title: "Solving Ordinary Differential Equations"
+subtitle: "A Comparison of Python and Octave"
+author: "Magnificus Rex"
+format:
+  html:
+    code-fold: false
+    toc: true
+    theme: darkly
+    embed-resources: true
+    standalone: true
+execute:
+  warning: false
+---
+
+## Introduction
+
+This document demonstrates how to solve Ordinary Differential Equations (ODEs) using both Python and Octave. We'll explore several classic examples including:
+
+1. Simple exponential decay
+2. Harmonic oscillator (mass-spring system)
+3. Predator-prey dynamics (Lotka-Volterra)
+4. The Lorenz system (chaotic dynamics)
+
+## Numerical Methods Overview
+
+Before diving into examples, let's understand the numerical methods used to solve ODEs. We'll implement and compare three fundamental methods:
+
+1. **Forward Euler** - First-order method (simple but less accurate)
+2. **Runge-Kutta 4th order (RK4)** - Fourth-order method (classic, highly accurate)
+3. **Adaptive solvers** - Variable step-size methods (most efficient)
+
+### Python Implementation of Numerical Methods
+
+```{python}
+def euler_method(f, y0, t, *args):
+    """
+    Forward Euler method for solving ODEs.
+    
+    dy/dt = f(y, t, *args)
+    y(t0) = y0
+    """
+    y = np.zeros((len(t), len(y0) if hasattr(y0, '__len__') else 1))
+    y[0] = y0
+    
+    for i in range(len(t) - 1):
+        dt = t[i+1] - t[i]
+        y[i+1] = y[i] + dt * np.array(f(y[i], t[i], *args))
+    
+    return y
+
+def rk4_method(f, y0, t, *args):
+    """
+    4th order Runge-Kutta method for solving ODEs.
+    
+    dy/dt = f(y, t, *args)
+    y(t0) = y0
+    """
+    y = np.zeros((len(t), len(y0) if hasattr(y0, '__len__') else 1))
+    y[0] = y0
+    
+    for i in range(len(t) - 1):
+        dt = t[i+1] - t[i]
+        k1 = np.array(f(y[i], t[i], *args))
+        k2 = np.array(f(y[i] + dt*k1/2, t[i] + dt/2, *args))
+        k3 = np.array(f(y[i] + dt*k2/2, t[i] + dt/2, *args))
+        k4 = np.array(f(y[i] + dt*k3, t[i] + dt, *args))
+        
+        y[i+1] = y[i] + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+    
+    return y
+
+# Test with exponential decay
+def decay_ode(y, t, k):
+    return -k * y
+
+k = 0.5
+y0 = [10.0]
+t_coarse = np.linspace(0, 10, 21)  # 20 steps
+t_fine = np.linspace(0, 10, 201)   # 200 steps
+
+# Analytical solution
+y_exact = y0[0] * np.exp(-k * t_fine)
+
+# Solve with different methods
+y_euler_coarse = euler_method(decay_ode, y0, t_coarse, k)
+y_euler_fine = euler_method(decay_ode, y0, t_fine, k)
+y_rk4_coarse = rk4_method(decay_ode, y0, t_coarse, k)
+y_rk4_fine = rk4_method(decay_ode, y0, t_fine, k)
+y_odeint = odeint(decay_ode, y0, t_fine, args=(k,))
+
+# Plot comparison
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Left plot: Visual comparison
+ax1.plot(t_fine, y_exact, 'k-', linewidth=2, label='Exact', alpha=0.7)
+ax1.plot(t_coarse, y_euler_coarse, 'r.-', linewidth=1.5, markersize=8, label='Euler (20 steps)')
+ax1.plot(t_coarse, y_rk4_coarse, 'b.-', linewidth=1.5, markersize=8, label='RK4 (20 steps)')
+ax1.plot(t_fine, y_odeint, 'g--', linewidth=2, label='LSODA (adaptive)', alpha=0.7)
+ax1.set_xlabel('Time')
+ax1.set_ylabel('y(t)')
+ax1.set_title('Method Comparison: Exponential Decay')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Right plot: Error analysis
+error_euler_coarse = np.abs(y_euler_coarse.flatten() - y0[0] * np.exp(-k * t_coarse))
+error_euler_fine = np.abs(y_euler_fine.flatten() - y_exact)
+error_rk4_coarse = np.abs(y_rk4_coarse.flatten() - y0[0] * np.exp(-k * t_coarse))
+error_rk4_fine = np.abs(y_rk4_fine.flatten() - y_exact)
+error_odeint = np.abs(y_odeint.flatten() - y_exact)
+
+ax2.semilogy(t_coarse, error_euler_coarse, 'r.-', linewidth=1.5, markersize=8, label='Euler (20 steps)')
+ax2.semilogy(t_fine, error_euler_fine, 'r--', linewidth=1, alpha=0.5, label='Euler (200 steps)')
+ax2.semilogy(t_coarse, error_rk4_coarse, 'b.-', linewidth=1.5, markersize=8, label='RK4 (20 steps)')
+ax2.semilogy(t_fine, error_rk4_fine, 'b--', linewidth=1, alpha=0.5, label='RK4 (200 steps)')
+ax2.semilogy(t_fine, error_odeint, 'g-', linewidth=2, label='LSODA', alpha=0.7)
+ax2.set_xlabel('Time')
+ax2.set_ylabel('Absolute Error')
+ax2.set_title('Error Analysis (Log Scale)')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Print final errors
+print("Final Errors at t=10:")
+print(f"  Euler (20 steps):  {error_euler_coarse[-1]:.6e}")
+print(f"  Euler (200 steps): {error_euler_fine[-1]:.6e}")
+print(f"  RK4 (20 steps):    {error_rk4_coarse[-1]:.6e}")
+print(f"  RK4 (200 steps):   {error_rk4_fine[-1]:.6e}")
+print(f"  LSODA (adaptive):  {error_odeint[-1]:.6e}")
+```
+
+### Octave Implementation of Numerical Methods
+
+```{octave}
+#| eval: false
+% Forward Euler method
+function y = euler_method(f, y0, t, varargin)
+    n = length(t);
+    m = length(y0);
+    y = zeros(n, m);
+    y(1, :) = y0;
+    
+    for i = 1:n-1
+        dt = t(i+1) - t(i);
+        y(i+1, :) = y(i, :) + dt * f(y(i, :)', t(i), varargin{:})';
+    end
+end
+
+% 4th order Runge-Kutta method
+function y = rk4_method(f, y0, t, varargin)
+    n = length(t);
+    m = length(y0);
+    y = zeros(n, m);
+    y(1, :) = y0;
+    
+    for i = 1:n-1
+        dt = t(i+1) - t(i);
+        k1 = f(y(i, :)', t(i), varargin{:});
+        k2 = f(y(i, :)' + dt*k1/2, t(i) + dt/2, varargin{:});
+        k3 = f(y(i, :)' + dt*k2/2, t(i) + dt/2, varargin{:});
+        k4 = f(y(i, :)' + dt*k3, t(i) + dt, varargin{:});
+        
+        y(i+1, :) = y(i, :) + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)';
+    end
+end
+
+% Test with exponential decay
+function dydt = decay_ode(y, t, k)
+    dydt = -k * y;
+end
+
+k = 0.5;
+y0 = 10.0;
+t_coarse = linspace(0, 10, 21);
+t_fine = linspace(0, 10, 201);
+
+% Analytical solution
+y_exact = y0 * exp(-k * t_fine);
+
+% Solve with different methods
+y_euler_coarse = euler_method(@decay_ode, y0, t_coarse, k);
+y_rk4_coarse = rk4_method(@decay_ode, y0, t_coarse, k);
+y_lsode = lsode(@(y, t) decay_ode(y, t, k), y0, t_fine);
+
+% Plot comparison
+figure;
+subplot(1, 2, 1);
+plot(t_fine, y_exact, 'k-', 'LineWidth', 2);
+hold on;
+plot(t_coarse, y_euler_coarse, 'r.-', 'LineWidth', 1.5, 'MarkerSize', 8);
+plot(t_coarse, y_rk4_coarse, 'b.-', 'LineWidth', 1.5, 'MarkerSize', 8);
+plot(t_fine, y_lsode, 'g--', 'LineWidth', 2);
+xlabel('Time');
+ylabel('y(t)');
+title('Method Comparison: Exponential Decay');
+legend('Exact', 'Euler (20 steps)', 'RK4 (20 steps)', 'LSODE');
+grid on;
+
+% Error analysis
+subplot(1, 2, 2);
+error_euler = abs(y_euler_coarse - y0 * exp(-k * t_coarse)');
+error_rk4 = abs(y_rk4_coarse - y0 * exp(-k * t_coarse)');
+error_lsode = abs(y_lsode - y_exact');
+
+semilogy(t_coarse, error_euler, 'r.-', 'LineWidth', 1.5, 'MarkerSize', 8);
+hold on;
+semilogy(t_coarse, error_rk4, 'b.-', 'LineWidth', 1.5, 'MarkerSize', 8);
+semilogy(t_fine, error_lsode, 'g-', 'LineWidth', 2);
+xlabel('Time');
+ylabel('Absolute Error');
+title('Error Analysis (Log Scale)');
+legend('Euler (20 steps)', 'RK4 (20 steps)', 'LSODE');
+grid on;
+```
+
+### Key Observations
+
+From the comparison above, we can see:
+
+1. **Euler Method**: 
+   - Simplest to implement
+   - First-order accuracy: error ∝ Δt
+   - Requires many small steps for accuracy
+   - Can accumulate significant error over time
+
+2. **RK4 Method**:
+   - More complex but still straightforward
+   - Fourth-order accuracy: error ∝ Δt⁴
+   - Much more accurate than Euler for the same step size
+   - Good balance of accuracy and efficiency
+
+3. **Adaptive Solvers (LSODA/odeint)**:
+   - Automatically adjust step size
+   - Use error estimation to maintain accuracy
+   - Most efficient for complex problems
+   - Handle stiff equations better
+
+### When to Use Each Method
+
+- **Euler**: Educational purposes, extremely simple systems, or when implementing custom methods
+- **RK4**: Good baseline for custom implementations, fixed time-step requirements
+- **Adaptive Solvers**: Production code, complex systems, when you need reliability and efficiency
+
+## Example 1: Exponential Decay
+
+The simplest ODE describes exponential decay:
+
+$$\frac{dy}{dt} = -ky$$
+
+with initial condition $y(0) = y_0$.
+
+### Python Solution
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import odeint
+
+# Define the ODE
+def exponential_decay(y, t, k):
+    return -k * y
+
+# Parameters
+k = 0.5
+y0 = 10
+t = np.linspace(0, 10, 100)
+
+# Solve ODE
+y = odeint(exponential_decay, y0, t, args=(k,))
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.plot(t, y, 'b-', linewidth=2, label='Numerical solution')
+plt.plot(t, y0 * np.exp(-k*t), 'r--', linewidth=2, label='Analytical solution')
+plt.xlabel('Time')
+plt.ylabel('y(t)')
+plt.title('Exponential Decay (Python)')
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define the ODE
+function dydt = exponential_decay(y, t, k)
+    dydt = -k * y;
+endfunction
+
+% Parameters
+k = 0.5;
+y0 = 10;
+t = linspace(0, 10, 100);
+
+% Solve ODE
+y = lsode(@(y, t) exponential_decay(y, t, k), y0, t);
+
+% Plot
+figure;
+plot(t, y, 'b-', 'LineWidth', 2);
+hold on;
+plot(t, y0 * exp(-k*t), 'r--', 'LineWidth', 2);
+xlabel('Time');
+ylabel('y(t)');
+title('Exponential Decay (Octave)');
+legend('Numerical solution', 'Analytical solution');
+grid on;
+```
+
+## Example 2: Harmonic Oscillator
+
+The classic mass-spring system is described by:
+
+$$\frac{d^2x}{dt^2} + 2\zeta\omega_0\frac{dx}{dt} + \omega_0^2x = 0$$
+
+We convert this to a system of first-order ODEs.
+
+### Python Solution
+
+```{python}
+# Define the harmonic oscillator system
+def harmonic_oscillator(y, t, zeta, omega0):
+    x, v = y
+    dxdt = v
+    dvdt = -2*zeta*omega0*v - omega0**2*x
+    return [dxdt, dvdt]
+
+# Parameters: underdamped oscillator
+zeta = 0.1  # damping ratio
+omega0 = 2*np.pi  # natural frequency
+y0 = [1, 0]  # initial position and velocity
+t = np.linspace(0, 5, 500)
+
+# Solve ODE
+solution = odeint(harmonic_oscillator, y0, t, args=(zeta, omega0))
+x = solution[:, 0]
+v = solution[:, 1]
+
+# Plot position and velocity
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+ax1.plot(t, x, 'b-', linewidth=2)
+ax1.set_ylabel('Position x(t)')
+ax1.set_title('Damped Harmonic Oscillator (Python)')
+ax1.grid(True)
+
+ax2.plot(t, v, 'r-', linewidth=2)
+ax2.set_xlabel('Time')
+ax2.set_ylabel('Velocity v(t)')
+ax2.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+# Phase portrait
+plt.figure(figsize=(8, 8))
+plt.plot(x, v, 'b-', linewidth=1.5)
+plt.plot(x[0], v[0], 'go', markersize=10, label='Start')
+plt.plot(x[-1], v[-1], 'ro', markersize=10, label='End')
+plt.xlabel('Position x')
+plt.ylabel('Velocity v')
+plt.title('Phase Portrait')
+plt.legend()
+plt.grid(True)
+plt.axis('equal')
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define the harmonic oscillator system
+function dydt = harmonic_oscillator(y, t, zeta, omega0)
+    x = y(1);
+    v = y(2);
+    dxdt = v;
+    dvdt = -2*zeta*omega0*v - omega0^2*x;
+    dydt = [dxdt; dvdt];
+endfunction
+
+% Parameters
+zeta = 0.1;
+omega0 = 2*pi;
+y0 = [1; 0];
+t = linspace(0, 5, 500);
+
+% Solve ODE
+solution = lsode(@(y, t) harmonic_oscillator(y, t, zeta, omega0), y0, t);
+x = solution(:, 1);
+v = solution(:, 2);
+
+% Plot position and velocity
+figure;
+subplot(2, 1, 1);
+plot(t, x, 'b-', 'LineWidth', 2);
+ylabel('Position x(t)');
+title('Damped Harmonic Oscillator (Octave)');
+grid on;
+
+subplot(2, 1, 2);
+plot(t, v, 'r-', 'LineWidth', 2);
+xlabel('Time');
+ylabel('Velocity v(t)');
+grid on;
+```
+
+## Example 3: Predator-Prey Dynamics
+
+The Lotka-Volterra equations model population dynamics:
+
+$$\frac{dx}{dt} = \alpha x - \beta xy$$
+$$\frac{dy}{dt} = \delta xy - \gamma y$$
+
+where $x$ is prey population and $y$ is predator population.
+
+### Python Solution
+
+```{python}
+# Define Lotka-Volterra equations
+def lotka_volterra(y, t, alpha, beta, delta, gamma):
+    x, y_pred = y
+    dxdt = alpha*x - beta*x*y_pred
+    dydt = delta*x*y_pred - gamma*y_pred
+    return [dxdt, dydt]
+
+# Parameters
+alpha = 1.0   # prey birth rate
+beta = 0.1    # predation rate
+delta = 0.075 # predator efficiency
+gamma = 1.5   # predator death rate
+y0 = [10, 5]  # initial populations
+t = np.linspace(0, 50, 1000)
+
+# Solve ODE
+solution = odeint(lotka_volterra, y0, t, args=(alpha, beta, delta, gamma))
+prey = solution[:, 0]
+predator = solution[:, 1]
+
+# Plot time series
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+ax1.plot(t, prey, 'b-', linewidth=2, label='Prey')
+ax1.plot(t, predator, 'r-', linewidth=2, label='Predator')
+ax1.set_ylabel('Population')
+ax1.set_title('Predator-Prey Dynamics (Python)')
+ax1.legend()
+ax1.grid(True)
+
+# Phase portrait
+ax2.plot(prey, predator, 'g-', linewidth=1.5)
+ax2.plot(prey[0], predator[0], 'bo', markersize=10, label='Start')
+ax2.set_xlabel('Prey Population')
+ax2.set_ylabel('Predator Population')
+ax2.set_title('Phase Portrait')
+ax2.legend()
+ax2.grid(True)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define Lotka-Volterra equations
+function dydt = lotka_volterra(y, t, alpha, beta, delta, gamma)
+    x = y(1);
+    y_pred = y(2);
+    dxdt = alpha*x - beta*x*y_pred;
+    dydt = delta*x*y_pred - gamma*y_pred;
+    dydt = [dxdt; dydt];
+endfunction
+
+% Parameters
+alpha = 1.0;
+beta = 0.1;
+delta = 0.075;
+gamma = 1.5;
+y0 = [10; 5];
+t = linspace(0, 50, 1000);
+
+% Solve ODE
+solution = lsode(@(y, t) lotka_volterra(y, t, alpha, beta, delta, gamma), y0, t);
+prey = solution(:, 1);
+predator = solution(:, 2);
+
+% Plot
+figure;
+subplot(2, 1, 1);
+plot(t, prey, 'b-', 'LineWidth', 2);
+hold on;
+plot(t, predator, 'r-', 'LineWidth', 2);
+ylabel('Population');
+title('Predator-Prey Dynamics (Octave)');
+legend('Prey', 'Predator');
+grid on;
+
+subplot(2, 1, 2);
+plot(prey, predator, 'g-', 'LineWidth', 1.5);
+xlabel('Prey Population');
+ylabel('Predator Population');
+title('Phase Portrait');
+grid on;
+```
+
+## Example 4: Lorenz System
+
+The Lorenz system is a classic example of chaotic dynamics:
+
+$$\frac{dx}{dt} = \sigma(y - x)$$
+$$\frac{dy}{dt} = x(\rho - z) - y$$
+$$\frac{dz}{dt} = xy - \beta z$$
+
+### Python Solution
+
+```{python}
+from mpl_toolkits.mplot3d import Axes3D
+
+# Define Lorenz system
+def lorenz(y, t, sigma, rho, beta):
+    x, y_coord, z = y
+    dxdt = sigma * (y_coord - x)
+    dydt = x * (rho - z) - y_coord
+    dzdt = x * y_coord - beta * z
+    return [dxdt, dydt, dzdt]
+
+# Parameters (classic chaotic regime)
+sigma = 10.0
+rho = 28.0
+beta = 8.0/3.0
+y0 = [1, 1, 1]
+t = np.linspace(0, 50, 10000)
+
+# Solve ODE
+solution = odeint(lorenz, y0, t, args=(sigma, rho, beta))
+x = solution[:, 0]
+y_coord = solution[:, 1]
+z = solution[:, 2]
+
+# 3D Plot
+fig = plt.figure(figsize=(12, 9))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot(x, y_coord, z, 'b-', linewidth=0.5, alpha=0.8)
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.set_title('Lorenz Attractor (Python)')
+plt.show()
+
+# Time series
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 9))
+
+ax1.plot(t, x, 'b-', linewidth=0.5)
+ax1.set_ylabel('x(t)')
+ax1.set_title('Lorenz System - Time Series')
+ax1.grid(True)
+
+ax2.plot(t, y_coord, 'r-', linewidth=0.5)
+ax2.set_ylabel('y(t)')
+ax2.grid(True)
+
+ax3.plot(t, z, 'g-', linewidth=0.5)
+ax3.set_xlabel('Time')
+ax3.set_ylabel('z(t)')
+ax3.grid(True)
+
+plt.tight_layout()
+plt.show()
+```
+
+### Octave Solution
+
+```{octave}
+#| eval: false
+% Define Lorenz system
+function dydt = lorenz(y, t, sigma, rho, beta)
+    x = y(1);
+    y_coord = y(2);
+    z = y(3);
+    dxdt = sigma * (y_coord - x);
+    dydt = x * (rho - z) - y_coord;
+    dzdt = x * y_coord - beta * z;
+    dydt = [dxdt; dydt; dzdt];
+endfunction
+
+% Parameters
+sigma = 10.0;
+rho = 28.0;
+beta = 8.0/3.0;
+y0 = [1; 1; 1];
+t = linspace(0, 50, 10000);
+
+% Solve ODE
+solution = lsode(@(y, t) lorenz(y, t, sigma, rho, beta), y0, t);
+x = solution(:, 1);
+y_coord = solution(:, 2);
+z = solution(:, 3);
+
+% 3D Plot
+figure;
+plot3(x, y_coord, z, 'b-', 'LineWidth', 0.5);
+xlabel('X');
+ylabel('Y');
+zlabel('Z');
+title('Lorenz Attractor (Octave)');
+grid on;
+```
+
+## Comparison Summary
+
+| Feature | Python (scipy.integrate) | Octave (lsode) |
+|---------|-------------------------|----------------|
+| **Built-in Solvers** | `odeint`, `solve_ivp` | `lsode`, `ode45` |
+| **Solver Type** | LSODA (adaptive) | LSODA (adaptive) |
+| **Custom Methods** | Easy to implement | Easy to implement |
+| **Euler Method** | Simple loops, NumPy arrays | Simple loops, matrix operations |
+| **RK4 Method** | Straightforward implementation | Straightforward implementation |
+| **Syntax** | More verbose, explicit | More compact, MATLAB-like |
+| **Plotting** | matplotlib (very flexible) | Built-in plotting |
+| **Performance** | Generally faster | Good for quick analysis |
+| **Ecosystem** | Extensive scientific packages | MATLAB-compatible |
+| **Learning Curve** | Gentle for Python users | Gentle for MATLAB users |
+
+### Numerical Method Performance
+
+For the exponential decay example with 20 steps over t=[0,10]:
+
+| Method | Typical Error | Order of Accuracy | Computational Cost |
+|--------|--------------|-------------------|-------------------|
+| **Euler** | ~10⁻¹ to 10⁰ | O(Δt) | Lowest (1 function eval/step) |
+| **RK4** | ~10⁻⁵ to 10⁻⁶ | O(Δt⁴) | Medium (4 function evals/step) |
+| **LSODA** | ~10⁻⁸ to 10⁻¹² | Adaptive | Variable (auto-adjusts) |
+
+## Conclusion
+
+Both Python and Octave provide powerful tools for solving ODEs:
+
+- **Python** offers more flexibility and a richer ecosystem for scientific computing
+- **Octave** provides MATLAB-compatible syntax and is excellent for rapid prototyping
+- Both produce accurate numerical solutions for a wide variety of ODE problems
+
+### Key Takeaways on Numerical Methods
+
+1. **Start with built-in solvers** - They're optimized, tested, and handle most cases well
+2. **Understand the basics** - Knowing Euler and RK4 helps you understand what's happening under the hood
+3. **Choose wisely** - Adaptive solvers (LSODA) are best for production, but simpler methods are valuable for learning
+4. **Step size matters** - Euler needs many small steps; RK4 is much more efficient; adaptive solvers optimize automatically
+
+### Recommendations
+
+- **For learning**: Start with Euler method to understand the concept, then move to RK4
+- **For research/production**: Use built-in adaptive solvers (`odeint`, `solve_ivp`, `lsode`)
+- **For custom applications**: Implement RK4 if you need fixed time steps or special handling
+- **For stiff problems**: Use adaptive solvers with stiff equation support (LSODA automatically handles this)
+
+The choice between them often depends on your specific needs, existing codebase, and personal preference.
